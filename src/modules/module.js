@@ -342,6 +342,32 @@ define(['jquery', 'lodash', 'src/util/context', 'src/util/api', 'src/util/util',
 			return false;
 		},
 
+        newWindow: function () {
+            var id = Util.getNextUniqueId();
+            var win = window.open(null, id, 'menubar=0,status=no,titlebar=no,toolbar=no');
+            var self = this;
+            var content = this.domContent;
+            var otherBody = $(win.document.body);
+            otherBody.append(content);
+            function resizeF() {
+                var h = otherBody.height(),
+                    w = otherBody.width();
+                content.css({
+                    height: h
+                });
+                self.view.onResize(h, content.width());
+            }
+            var resize;
+            win.addEventListener('resize', function () {
+                clearTimeout(resize);
+                resize = setTimeout(resizeF, 100);
+            });
+            win.addEventListener('beforeunload', function () {
+                content.insertAfter(self.domHeader);
+                require('src/main/grid').moduleResize(self);
+            });
+        },
+
 		inDom: function() {
 
 			this.view.inDom( );
@@ -353,7 +379,12 @@ define(['jquery', 'lodash', 'src/util/context', 'src/util/api', 'src/util/util',
 			if( ! API.isViewLocked() ) {
 
 				ContextMenu.listen(this.getDomWrapper().get(0), [
-					
+
+                    ['<li name="fullscreen"><a><span class="ui-icon ui-icon-arrow-4-diag"></span> New window</a></li>',
+                        function() {
+                            self.newWindow();
+                        }],
+
 					['<li name="fullscreen"><a><span class="ui-icon ui-icon-arrow-4-diag"></span> Fullscreen</a></li>',
 					function() {
 						self.enableFullscreen();
