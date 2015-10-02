@@ -30,7 +30,7 @@ define(['jquery', 'src/util/debug'], function ($, Debug) {
 
     function storeInMemory(store, index, data) {
         var toStore, toDelete, head;
-        if (memory[store] && memoryCount[store] && memoryLimit[store]) {
+        if (memory[store] && memoryCount[store] !== undefined && memoryLimit[store]) {
             head = memoryHead[store];
             if (memory[store][index])
                 return getFromMemory(store, index);
@@ -135,7 +135,7 @@ define(['jquery', 'src/util/debug'], function ($, Debug) {
             return ready;
         }
 
-        var openrequest = indexedDB.open(dbname, 1);
+        var openrequest = indexedDB.open(dbname, 2);
 
         // Database is open
         openrequest.onsuccess = function (e) {
@@ -152,16 +152,22 @@ define(['jquery', 'src/util/debug'], function ($, Debug) {
 
         openrequest.onupgradeneeded = function (e) {
             db = e.target.result;
-            if (db.objectStoreNames.contains('lru'))
-                return;
-            var objectStore = db.createObjectStore('lru', {keyPath: 'index'});
-            objectStore.createIndex('key', 'key', {unique: true});
-            objectStore.createIndex('store', 'store', {unique: false});
+            var transaction = e.currentTarget.transaction;
+            switch (e.oldVersion) {
+                case 0:
+                    var objectStore = db.createObjectStore('lru', {keyPath: 'index'});
+                    objectStore.createIndex('key', 'key', {unique: true});
+                    objectStore.createIndex('store', 'store', {unique: false});
+                case 1:
+                    objectStore = transaction.objectStore('lru');
+                    objectStore.deleteIndex('key');
+                    objectStore.createIndex('key', 'key', {unique: false});
+                    break;
+                default:
+                    Debug.warn('Unexpected IDB version', e.oldVersion);
+                    break;
 
-            objectStore.onsuccess = function () {
-
-            };
-
+            }
         };
 
         return ready;
@@ -224,14 +230,25 @@ define(['jquery', 'src/util/debug'], function ($, Debug) {
 
         $.when(openDb()).then(function () {
 
-            var store = db.transaction(['lru'], 'readwrite').objectStore('lru');
+            var transaction = db.transaction('lru', 'readwrite');
 
-            var storingRequest = store.put({
+            transaction.oncomplete = function () {
+                console.log('transaction complete');
+            };
+            transaction.onerror = function (e) {
+                console.log('transaction error', e.target);
+            };
+
+            var store = transaction.objectStore('lru');
+            console.log('put', storeName, index);
+            store.put({
                 data: {
                     data: data,
                     timeout: Date.now()
-                }, index: storeName + index, key: index, store: storeName
+                },
+                index: storeName + index, key: index, store: storeName
             });
+
             var lruGet = store.get('__lrudata' + storeName);
             lruGet.onsuccess = function (e) {
                 var lru = e.target.result;
