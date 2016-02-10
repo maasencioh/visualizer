@@ -55,12 +55,6 @@ define([
                 } else {
 
                     var options = {
-                        close: {
-                            left: false,
-                            right: false,
-                            top: false,
-                            bottom: false
-                        },
                         plugins: {},
                         pluginAction: {}
                     };
